@@ -5,7 +5,7 @@ plugins {
     id("com.gradle.plugin-publish") version "2.1.0"
 }
 
-group = "no.domstolene"
+group = "io.github.arve0"
 version = providers.gradleProperty("releaseVersion").orElse("dev-SNAPSHOT").get()
 
 val githubPackagesUser = providers.gradleProperty("GITHUB_USER")
@@ -43,15 +43,15 @@ dependencies {
 }
 
 gradlePlugin {
-    website = "https://github.com/domstolene/gradle-properties-1password-plugin"
-    vcsUrl = "https://github.com/domstolene/gradle-properties-1password-plugin"
+    website = "https://github.com/arve0/gradle-1password-properties-plugin"
+    vcsUrl = "https://github.com/arve0/gradle-1password-properties-plugin"
     plugins {
         register("1PasswordProperties") {
-            id = "no.domstolene.1password.properties"
+            id = "io.github.arve0.1password.properties"
             displayName = "1Password gradle properties with op:// paths"
             description = "A plugin that resolves op:// paths in gradle properties with 1Password CLI"
             tags = listOf("1password", "secrets")
-            implementationClass = "no.domstolene.gradle.properties.onepassword.OnePasswordGradlePropertiesPlugin"
+            implementationClass = "io.github.arve0.onepassword.properties.OnePasswordGradlePropertiesPlugin"
 
             compatibility { // extension added by the Compatibility plugin
                 features {
@@ -83,7 +83,7 @@ configure<org.gradle.api.publish.PublishingExtension> {
     repositories {
         maven {
             name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/domstolene/gradle-properties-1password-plugin")
+            url = uri("https://maven.pkg.github.com/arve0/gradle-1password-properties-plugin")
             credentials {
                 username = githubPackagesUser.orNull
                 password = githubPackagesToken.orNull

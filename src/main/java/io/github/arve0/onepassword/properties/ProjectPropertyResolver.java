@@ -1,4 +1,4 @@
-package no.domstolene.gradle.properties.onepassword;
+package io.github.arve0.onepassword.properties;
 
 final class ProjectPropertyResolver {
     private static final String OP_PREFIX = "op://";

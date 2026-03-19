@@ -1,4 +1,4 @@
-package no.domstolene.gradle.properties.onepassword;
+package io.github.arve0.onepassword.properties;
 
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
@@ -157,7 +157,7 @@ class OnePasswordGradlePropertiesPluginFunctionalTest {
         Files.writeString(
                 projectDir.resolve("build.gradle.kts"),
                 "plugins {\n" +
-                        "    id(\"no.domstolene.1password.properties\")\n" +
+                        "    id(\"io.github.arve0.1password.properties\")\n" +
                         "}\n" +
                         "\n" +
                         "tasks.register(\"printToken\") {\n" +

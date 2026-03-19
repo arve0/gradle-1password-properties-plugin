@@ -1,4 +1,4 @@
-package no.domstolene.gradle.properties.onepassword;
+package io.github.arve0.onepassword.properties;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

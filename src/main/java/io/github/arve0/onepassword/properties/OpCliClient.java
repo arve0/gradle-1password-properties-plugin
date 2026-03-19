@@ -1,4 +1,4 @@
-package no.domstolene.gradle.properties.onepassword;
+package io.github.arve0.onepassword.properties;
 
 import org.gradle.api.Project;
 

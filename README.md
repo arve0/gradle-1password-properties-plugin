@@ -1,4 +1,4 @@
-# gradle-properties-1password-plugin
+# gradle-1password-properties-plugin
 
 This plugin resolves Gradle project properties prefixed with `op://` by calling the 1Password CLI (`op read <reference>`).
 
@@ -15,7 +15,7 @@ GITHUB_TOKEN=op://Personal/Github Personal Access Token/token
 
 ```kotlin
 plugins {
-    id("no.domstolene.1password.properties") version "0.1.0"
+    id("io.github.arve0.1password.properties") version "0.1.0"
 }
 
 val githubToken: String by project
@@ -108,7 +108,7 @@ This will trigger [release workflow](.github/workflows/release-publish.yml) and 
 
 #### Publish setup
 
-Plugin is released to [Gradle Plugin Portal with user domstolene](https://plugins.gradle.org/u/domstolene) using an API-key.
+Plugin is released to [Gradle Plugin Portal with user arve0](https://plugins.gradle.org/u/arve0) using an API-key.
 API-key is stored in Github secrets:
 
 ```shell
@@ -126,7 +126,7 @@ In the consuming project's `settings.gradle.kts`:
 
 ```kotlin
 pluginManagement {
-    includeBuild("/path/to/gradle-properties-1password-plugin")
+    includeBuild("/path/to/gradle-1password-properties-plugin")
 }
 ```
 
@@ -134,7 +134,7 @@ Then apply the plugin as normal — no version number is needed:
 
 ```kotlin
 plugins {
-    id("no.domstolene.1password.properties")
+    id("io.github.arve0.1password.properties")
 }
 ```
 
@@ -162,6 +162,6 @@ plugins {
 
    ```kotlin
    plugins {
-       id("no.domstolene.1password.properties") version "0.1.0"
+       id("io.github.arve0.1password.properties") version "0.1.0"
    }
    ```

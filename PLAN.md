@@ -5,7 +5,7 @@ Build a Gradle plugin that resolves project properties prefixed with `op://` usi
 
 ## Phase 1 - Project setup and plugin wiring
 - Configure plugin metadata in `build.gradle.kts` using `java-gradle-plugin`.
-- Register plugin id `no.domstolene.gradle.properties.1password` and implementation class.
+- Register plugin id `io.github.arve0.1password.properties` and implementation class.
 - Add plugin entrypoint under `src/main/java` implementing `Plugin<Project>`.
 - Wire internal components for property resolution and CLI access.
 

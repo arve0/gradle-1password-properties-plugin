@@ -1,4 +1,4 @@
-package no.domstolene.gradle.properties.onepassword;
+package io.github.arve0.onepassword.properties;
 
 /**
  * An exception that indicates an error occurred during the resolution of a property.
