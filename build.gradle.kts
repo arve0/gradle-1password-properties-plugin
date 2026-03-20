@@ -73,6 +73,15 @@ val functionalTestTask = tasks.register<Test>("functionalTest") {
     classpath = functionalTest.runtimeClasspath
     useJUnitPlatform()
     shouldRunAfter(tasks.test)
+    val runningInIde = providers.systemProperty("idea.active").map { true }.orElse(false)
+    systemProperty("test.ide", runningInIde.get().toString())
+    testLogging {
+        if (!runningInIde.get()) {
+            events("passed", "skipped", "failed")
+            exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+            showStandardStreams = true
+        }
+    }
 }
 
 tasks.check {

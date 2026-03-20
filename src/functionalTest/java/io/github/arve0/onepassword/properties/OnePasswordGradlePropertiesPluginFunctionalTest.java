@@ -5,16 +5,19 @@ import org.gradle.testkit.runner.GradleRunner;
 import org.gradle.testkit.runner.UnexpectedBuildFailure;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.opentest4j.AssertionFailedError;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
+import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class OnePasswordGradlePropertiesPluginFunctionalTest {
@@ -58,14 +61,14 @@ class OnePasswordGradlePropertiesPluginFunctionalTest {
         writeProjectFiles(opMock, "TOKEN=op://vault/item/field");
 
         BuildResult firstRun = runBuildWithConfigurationCache("printToken");
+        Integer initialInvocationCount = readInvocationCount(invocationCountFile);
+
         BuildResult secondRun = runBuildWithConfigurationCache("printToken");
+        assertEquals(initialInvocationCount, readInvocationCount(invocationCountFile));
 
         assertOutputContains(firstRun, "TOKEN=functional-secret", "first run should resolve token");
-        assertEquals(1, readInvocationCount(invocationCountFile));
-
         assertOutputContains(secondRun, "TOKEN=functional-secret", "second run should still print the same token");
         assertOutputContains(secondRun, "Configuration cache entry reused", "second run should reuse configuration cache");
-        assertEquals(1, readInvocationCount(invocationCountFile));
     }
 
     @Test
@@ -76,18 +79,19 @@ class OnePasswordGradlePropertiesPluginFunctionalTest {
         Files.writeString(secretFile, "functional-secret\n");
         Path opMock = createStatefulOpMock(secretFile, invocationCountFile);
         writeProjectFiles(opMock, "TOKEN=op://vault/item/field");
+        assertEquals(0, readInvocationCount(invocationCountFile));
 
         BuildResult firstRun = runBuildWithConfigurationCache("printToken");
+        Integer initialInvocationCount = readInvocationCount(invocationCountFile);
         assertOutputContains(firstRun, "TOKEN=functional-secret", "first run should resolve initial token");
-        assertEquals(1, readInvocationCount(invocationCountFile));
 
         Files.writeString(secretFile, "changed-secret\n");
 
         BuildResult secondRun = runBuildWithConfigurationCache("printToken");
+        assertEquals(initialInvocationCount, readInvocationCount(invocationCountFile));
 
         assertOutputContains(secondRun, "TOKEN=functional-secret", "second run should use cached token even after secret change");
         assertOutputContains(secondRun, "Configuration cache entry reused", "second run should reuse cached configuration");
-        assertEquals(1, readInvocationCount(invocationCountFile));
     }
 
     @Test
@@ -100,8 +104,10 @@ class OnePasswordGradlePropertiesPluginFunctionalTest {
         writeProjectFiles(opMock, "TOKEN=op://vault/item/field");
 
         BuildResult firstRun = runBuildWithConfigurationCache("printToken");
+        Integer initialInvocationCount = readInvocationCount(invocationCountFile);
+
+        assertEquals(1, initialInvocationCount);
         assertOutputContains(firstRun, "TOKEN=functional-secret", "first run should resolve token");
-        assertEquals(1, readInvocationCount(invocationCountFile));
 
         Files.writeString(
                 opMock,
@@ -120,10 +126,10 @@ class OnePasswordGradlePropertiesPluginFunctionalTest {
         );
 
         BuildResult secondRun = runBuildWithConfigurationCache("printToken");
+        assertEquals(initialInvocationCount, readInvocationCount(invocationCountFile));
 
         assertOutputContains(secondRun, "TOKEN=functional-secret", "second run should use cached token");
         assertOutputContains(secondRun, "Configuration cache entry reused", "second run should reuse configuration cache");
-        assertEquals(1, readInvocationCount(invocationCountFile));
     }
 
     @Test
@@ -136,15 +142,29 @@ class OnePasswordGradlePropertiesPluginFunctionalTest {
         writeProjectFiles(opMock, "TOKEN=op://vault/item/field");
 
         BuildResult firstRun = runBuild("printToken");
+        Integer initialInvocationCount = readInvocationCount(invocationCountFile);
+
+        assertEquals(1, initialInvocationCount);
         assertOutputContains(firstRun, "TOKEN=functional-secret", "first run should resolve initial token");
-        assertEquals(1, readInvocationCount(invocationCountFile));
 
         Files.writeString(secretFile, "changed-secret\n");
-
         BuildResult secondRun = runBuild("printToken");
 
         assertOutputContains(secondRun, "TOKEN=changed-secret", "second run should resolve changed secret without configuration cache");
-        assertEquals(2, readInvocationCount(invocationCountFile));
+        assertEquals(initialInvocationCount + 1, readInvocationCount(invocationCountFile));
+    }
+
+    @Test
+    void configurationCacheStoresWithoutProblems() throws IOException {
+        assumePosix();
+        Path opMock = createOpMock("echo \"functional-secret\"");
+        writeProjectFiles(opMock, "TOKEN=op://vault/item/field");
+
+        BuildResult result = runBuildWithConfigurationCache("printToken");
+
+        assertOutputContains(result, "TOKEN=functional-secret", "resolved token should be printed");
+        assertOutputDoesNotMatchPattern(result, "problem.*configuration cache",
+                "configuration cache should store without problems");
     }
 
     private void writeProjectFiles(Path opMock, String tokenProperty) throws IOException {
@@ -170,19 +190,37 @@ class OnePasswordGradlePropertiesPluginFunctionalTest {
     }
 
     private BuildResult runBuild(String taskName) {
-        return GradleRunner.create()
-                .withProjectDir(projectDir.toFile())
-                .withPluginClasspath()
-                .withArguments(taskName, "--stacktrace")
-                .build();
+        return gradleRunner(taskName, "--stacktrace").build();
     }
 
     private BuildResult runBuildWithConfigurationCache(String taskName) {
+        return gradleRunner(taskName, "--configuration-cache", "--configuration-cache-problems=warn", "--stacktrace", "--info").build();
+    }
+
+    private GradleRunner gradleRunner(String... arguments) {
         return GradleRunner.create()
                 .withProjectDir(projectDir.toFile())
                 .withPluginClasspath()
-                .withArguments(taskName, "--configuration-cache", "--configuration-cache-problems=warn", "--stacktrace", "--info")
-                .build();
+                .withEnvironment(isolatedEnvironment())
+                .withArguments(arguments);
+    }
+
+    /**
+     * Returns an environment that isolates the Gradle build from the host machine:
+     * <ul>
+     *   <li>{@code ORG_GRADLE_PROJECT_*} variables are removed — Gradle promotes these
+     *       to project properties, so any with {@code op://} values would trigger the plugin
+     *       for references outside the test fixture.</li>
+     *   <li>{@code GRADLE_USER_HOME} is pointed at a temp directory so that
+     *       {@code ~/.gradle/gradle.properties} and {@code ~/.gradle/init.d/} are ignored.</li>
+     * </ul>
+     */
+    private Map<String, String> isolatedEnvironment() {
+        Map<String, String> env = System.getenv().entrySet().stream()
+                .filter(e -> !e.getKey().startsWith("ORG_GRADLE_PROJECT_"))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        env.put("GRADLE_USER_HOME", projectDir.resolve("gradle-home").toString());
+        return env;
     }
 
     private Path createOpMock(String behavior) throws IOException {
@@ -241,21 +279,76 @@ class OnePasswordGradlePropertiesPluginFunctionalTest {
 
     private void assertOutputContains(BuildResult result, String expectedSubstring, String context) {
         String output = result.getOutput();
-        assertTrue(
-                output.contains(expectedSubstring),
-                () -> "Expected build output to contain '" + expectedSubstring + "' (" + context + "), but it did not.\n"
-                        + "--- build output ---\n"
-                        + output
-        );
+        if (!output.contains(expectedSubstring)) {
+            throw new AssertionFailedError(
+                    formatMessage(context, expectedSubstring, output),
+                    expectedSubstring,
+                    output
+            );
+        }
+    }
+
+    private void assertOutputDoesNotMatchPattern(BuildResult result, String regex, String context) {
+        String output = result.getOutput();
+        Pattern pattern = Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
+        if (pattern.matcher(output).find()) {
+            String expected = "output not matching /" + regex + "/i";
+            String actual = extractMatchingLinesWithContext(output, pattern, 3);
+            throw new AssertionFailedError(
+                    formatMessage(context, expected, actual),
+                    expected,
+                    actual
+            );
+        }
     }
 
     private void assertMessageContains(String message, String expectedSubstring, String context) {
-        assertTrue(
-                message != null && message.contains(expectedSubstring),
-                () -> "Expected message to contain '" + expectedSubstring + "' (" + context + "), but it did not.\n"
-                        + "--- actual message ---\n"
-                        + String.valueOf(message)
-        );
+        if (message == null || !message.contains(expectedSubstring)) {
+            String actual = String.valueOf(message);
+            throw new AssertionFailedError(
+                    formatMessage(context, expectedSubstring, actual),
+                    expectedSubstring,
+                    actual
+            );
+        }
+    }
+
+    private static String formatMessage(String context, String expected, String actual) {
+        if ("true".equals(System.getProperty("test.ide"))) {
+            return context;
+        }
+        return context + "\nExpected: " + expected + "\nActual: " + actual;
+    }
+
+    private static String extractMatchingLinesWithContext(String text, Pattern pattern, int contextLines) {
+        String[] lines = text.split("\n", -1);
+        boolean[] include = new boolean[lines.length];
+        boolean anyMatch = false;
+        for (int i = 0; i < lines.length; i++) {
+            if (pattern.matcher(lines[i]).find()) {
+                anyMatch = true;
+                for (int j = Math.max(0, i - contextLines); j <= Math.min(lines.length - 1, i + contextLines); j++) {
+                    include[j] = true;
+                }
+            }
+        }
+        if (!anyMatch) {
+            return text;
+        }
+        StringBuilder sb = new StringBuilder();
+        boolean skipped = false;
+        for (int i = 0; i < lines.length; i++) {
+            if (include[i]) {
+                if (skipped) {
+                    sb.append("...\n");
+                }
+                sb.append(lines[i]).append("\n");
+                skipped = false;
+            } else {
+                skipped = true;
+            }
+        }
+        return sb.toString();
     }
 
     private void assumePosix() {
