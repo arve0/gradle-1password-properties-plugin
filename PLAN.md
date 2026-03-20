@@ -13,6 +13,7 @@ Build a Gradle plugin that resolves project properties prefixed with `op://` usi
 - `./gradlew tasks` shows plugin metadata correctly.
 - Project compiles with plugin classes in place.
 - Applying plugin does not fail due to missing wiring.
+- Secrets are not easily found in configuration-cache on disk.
 
 ## Phase 2 - Property resolution behavior
 - Implement resolver logic:

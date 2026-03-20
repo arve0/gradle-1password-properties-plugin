@@ -13,11 +13,13 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class OnePasswordGradlePropertiesPluginFunctionalTest {
@@ -165,6 +167,42 @@ class OnePasswordGradlePropertiesPluginFunctionalTest {
         assertOutputContains(result, "TOKEN=functional-secret", "resolved token should be printed");
         assertOutputDoesNotMatchPattern(result, "problem.*configuration cache",
                 "configuration cache should store without problems");
+    }
+
+    @Test
+    void secretsShouldNotBeEasilyFoundOnDisk() throws Exception {
+        assumePosix();
+        assumeCommandAvailable("rg", "ripgrep");
+        assumeCommandAvailable("fd", "fd-find");
+        assumeCommandAvailable("strings", "strings");
+
+        Path opMock = createOpMock("echo \"functional-secret\"");
+        writeProjectFiles(opMock, "TOKEN=op://vault/item/field");
+
+        BuildResult result = runBuildWithConfigurationCache("printToken");
+        assertOutputContains(result, "TOKEN=functional-secret", "build should succeed and resolve the secret");
+
+        Path dotGradle = projectDir.resolve(".gradle");
+        assertTrue(Files.isDirectory(dotGradle), ".gradle directory should exist after the build");
+        Path ccDir = dotGradle.resolve("configuration-cache");
+        assertTrue(Files.isDirectory(ccDir),
+                "configuration-cache directory should exist under .gradle: " + ccDir);
+
+        String secret = "functional-secret";
+
+        // rg: search all file contents (including binary) for the secret
+        String rgOutput = shell(String.format(
+                "rg -a --no-ignore --fixed-strings -l '%s' '%s' || true",
+                secret, dotGradle));
+        assertEquals("", rgOutput,
+                "rg should not find the secret in any file under .gradle:\n" + rgOutput);
+
+        // fd + strings: find all files, extract printable strings from binaries, search for the secret
+        String fdStringsOutput = shell(String.format(
+                "fd . '%s' --type f -0 | xargs -0 strings 2>/dev/null | grep -F '%s' || true",
+                dotGradle, secret));
+        assertEquals("", fdStringsOutput,
+                "fd+strings should not find the secret in any file under .gradle:\n" + fdStringsOutput);
     }
 
     private void writeProjectFiles(Path opMock, String tokenProperty) throws IOException {
@@ -349,6 +387,28 @@ class OnePasswordGradlePropertiesPluginFunctionalTest {
             }
         }
         return sb.toString();
+    }
+
+    private void assumeCommandAvailable(String command, String displayName) {
+        try {
+            Process p = new ProcessBuilder("which", command).start();
+            assumeTrue(p.waitFor() == 0, displayName + " is required for this test");
+        } catch (Exception e) {
+            assumeTrue(false, displayName + " is required for this test");
+        }
+    }
+
+    private String shell(String command) throws IOException, InterruptedException {
+        Process process = new ProcessBuilder("bash", "-c", command)
+                .redirectErrorStream(true)
+                .start();
+        String output = new String(process.getInputStream().readAllBytes()).trim();
+        boolean finished = process.waitFor(30, TimeUnit.SECONDS);
+        if (!finished) {
+            process.destroyForcibly();
+            throw new AssertionError("Command timed out: " + command);
+        }
+        return output;
     }
 
     private void assumePosix() {
