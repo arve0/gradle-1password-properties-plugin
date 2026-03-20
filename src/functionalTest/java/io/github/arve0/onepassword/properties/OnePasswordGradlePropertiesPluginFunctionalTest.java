@@ -4,14 +4,21 @@ import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
 import org.gradle.testkit.runner.UnexpectedBuildFailure;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.extension.TestWatcher;
+import org.junit.jupiter.api.io.CleanupMode;
 import org.junit.jupiter.api.io.TempDir;
 import org.opentest4j.AssertionFailedError;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -24,8 +31,29 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class OnePasswordGradlePropertiesPluginFunctionalTest {
 
-    @TempDir
+    @TempDir(cleanup = CleanupMode.ON_SUCCESS)
     Path projectDir;
+
+    private String[] lastGradleArgs;
+
+    @RegisterExtension
+    TestWatcher printReproduceCommand = new TestWatcher() {
+        @Override
+        public void testFailed(ExtensionContext context, Throwable cause) {
+            if (projectDir == null || lastGradleArgs == null) return;
+            try {
+                prepareReproduction();
+            } catch (IOException e) {
+                System.err.println("Failed to prepare reproduction files: " + e.getMessage());
+            }
+            String gradleHome = projectDir.resolve("gradle-home").toString();
+            String args = String.join(" ", lastGradleArgs);
+            System.err.println();
+            System.err.println("=== To reproduce ===");
+            System.err.println("cd " + projectDir + " && GRADLE_USER_HOME=" + gradleHome + " gradle " + args);
+            System.err.println();
+        }
+    };
 
     @Test
     void resolvesProjectPropertyFromOnePasswordReference() throws IOException {
@@ -236,11 +264,72 @@ class OnePasswordGradlePropertiesPluginFunctionalTest {
     }
 
     private GradleRunner gradleRunner(String... arguments) {
-        return GradleRunner.create()
+        lastGradleArgs = arguments;
+        var runner = GradleRunner.create()
                 .withProjectDir(projectDir.toFile())
                 .withPluginClasspath()
                 .withEnvironment(isolatedEnvironment())
                 .withArguments(arguments);
+
+        // could we use runner.getPluginClasspath() ?
+
+        return runner;
+    }
+
+    /**
+     * Prepares the temp project directory for manual reproduction of a failed test.
+     * Rewrites {@code settings.gradle.kts} to include a {@code pluginManagement}
+     * block that makes the plugin resolvable via {@code includeBuild}, so the
+     * {@code plugins { id("...") }} block in the build script works when running
+     * a plain {@code gradle} command outside TestKit.
+     */
+    private void prepareReproduction() throws IOException {
+        String[] classpathEntries = pluginClasspath();
+        Path pluginProjectDir = findPluginProjectDir(classpathEntries);
+
+        Path settingsFile = projectDir.resolve("settings.gradle.kts");
+        String existingSettings = Files.exists(settingsFile) ? Files.readString(settingsFile) : "";
+        String pluginPath = pluginProjectDir.toString().replace("\\", "\\\\");
+        Files.writeString(
+                settingsFile,
+                "pluginManagement {\n" +
+                "    includeBuild(\"" + pluginPath + "\")\n" +
+                "}\n" +
+                existingSettings
+        );
+    }
+
+    /**
+     * Walks up from the classpath entries produced by {@code plugin-under-test-metadata.properties}
+     * to locate the root of the plugin project (the directory containing {@code build.gradle.kts}
+     * or {@code build.gradle}).
+     */
+    private static Path findPluginProjectDir(String[] classpathEntries) throws IOException {
+        for (String entry : classpathEntries) {
+            Path path = Path.of(entry);
+            while (path != null) {
+                if (Files.exists(path.resolve("build.gradle.kts")) ||
+                    Files.exists(path.resolve("build.gradle"))) {
+                    return path;
+                }
+                path = path.getParent();
+            }
+        }
+        throw new IOException("Could not determine plugin project directory from classpath: " +
+                String.join(", ", classpathEntries));
+    }
+
+    private static String[] pluginClasspath() throws IOException {
+        try (InputStream is = OnePasswordGradlePropertiesPluginFunctionalTest.class.getClassLoader()
+                .getResourceAsStream("plugin-under-test-metadata.properties")) {
+            if (is == null) {
+                throw new IOException("plugin-under-test-metadata.properties not found on classpath");
+            }
+            Properties props = new Properties();
+            props.load(is);
+            String classpath = props.getProperty("implementation-classpath");
+            return classpath.split(File.pathSeparator);
+        }
     }
 
     /**
