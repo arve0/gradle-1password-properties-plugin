@@ -18,32 +18,85 @@ plugins {
     id("io.github.arve0.1password.properties") version "0.1.0"
 }
 
-val githubToken: String by project
+// Properties with op:// values are exposed as Provider<String>.
+val githubToken = project.property("GITHUB_TOKEN") as Provider<*>
 
-print("Resolved GitHub token: $githubToken")
+tasks.register("printToken") {
+    doLast {
+        // .get() is called at execution time — the secret is resolved here,
+        // not stored in the configuration cache.
+        println("token: ${githubToken.get()}")
+    }
+}
 ```
 
 ### Configuration cache
 
-This plugin is compatible with the [configuration cache](https://docs.gradle.org/current/userguide/configuration_cache.html). 
-When configuration cache is enabled, the secrets are stored in the 
-configuration cache and reused on later builds. The 1Password CLI is 
-not called again until the cache is invalidated.
+This plugin is compatible with the [Gradle configuration cache](https://docs.gradle.org/current/userguide/configuration_cache.html).
+Properties with `op://` values are exposed as `Provider<String>`, so whether
+a secret ends up in the configuration cache depends entirely on **when** your
+build calls `.get()`:
 
-If you need to update secrets, invalidate the cache when running gradle:
+**Execution time (recommended)** — call `.get()` inside `doLast` or another
+task action. Gradle does not store the value in the cache; `op` is called once
+per build when the task runs.
 
-```shell
-gradle --no-configuration-cache clean build
+```kotlin
+tasks.register("deploy") {
+    val token = project.property("DEPLOY_TOKEN") as Provider<*>
+    doLast {
+        // resolved at execution time, not stored in configuration cache
+        callDeployApi(token.get().toString())
+    }
+}
 ```
+
+**Configuration time** — some Gradle APIs require a resolved `String` at
+configuration time, for example repository credentials:
+
+```kotlin
+repositories {
+    maven {
+        url = uri("https://maven.pkg.github.com/myorg/myrepo")
+        credentials {
+            username = (project.property("GITHUB_USER") as Provider<*>).get().toString()
+            password = (project.property("GITHUB_KEY") as Provider<*>).get().toString()
+        }
+    }
+}
+```
+
+When `.get()` is called at configuration time, Gradle registers the
+`ValueSource` as a configuration cache input. The resolved secret **is stored
+in the configuration cache** on disk (see [When secrets are stored to disk](#when-secrets-are-stored-to-disk)).
+`op` is called on every build to check whether the cached value is still valid.
+
+
+### When secrets are stored to disk
+
+Be aware of these situations where a secret may be persisted to disk:
+
+| Situation | Location | Encrypted |
+|---|---|---|
+| `.get()` called at **configuration time** (e.g. repository credentials) | Gradle configuration cache file under `.gradle/configuration-cache/` | Yes — Gradle encrypts the CC with a per-project key |
+| Secret printed to **stdout or stderr** (e.g. `println`) | Gradle daemon log: `<GRADLE_USER_HOME>/daemon/<version>/daemon-*.out.log` | No |
+| Build **explicitly writes** the secret to a file | Wherever your build writes it (e.g. `build/`) | No |
+| **Build scan** (`--scan`) with secret on stdout | Uploaded to Develocity / scans.gradle.com | No |
+
+**Avoid printing secrets to stdout.** Even when a task runs at execution time,
+any value passed to `println` is captured by the Gradle daemon in its log file
+(`daemon-*.out.log`), which is stored unencrypted under `GRADLE_USER_HOME`.
 
 
 ## Behavior
 
-- String property values starting with `op://` are resolved through `op read`.
+- String property values starting with `op://` are resolved lazily through
+  `op read` and exposed as `Provider<String>`.
 - String property values not starting with `op://` are left unchanged.
-- The resolved value is trimmed before being set as the project property.
+- The resolved value is trimmed before being returned.
 - Secret values are never included in plugin error messages.
-- Secret values are stored to the configuration cache.
+- The `op://` reference itself (not the secret) is stored in the configuration
+  cache as a `ValueSource` parameter.
 
 
 ## Configuration
