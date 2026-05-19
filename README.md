@@ -1,6 +1,6 @@
 # gradle-1password-properties-plugin
 
-This plugin resolves Gradle project properties prefixed with `op://` by calling the 1Password CLI (`op read <reference>`).
+This plugin resolves Gradle project properties prefixed with `op://` by calling the 1Password CLI (`op read <reference>`). The main goal is to avoid secrets being stored to disk.
 
 
 ## Usage
