@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+IMAGE_NAME="${E2E_DOCKER_IMAGE:-onepassword-plugin-e2e}"
+
+docker build -f "$SCRIPT_DIR/Dockerfile" -t "$IMAGE_NAME" "$REPO_ROOT"
+
+docker run --rm \
+  -v "$REPO_ROOT:/workspace" \
+  -w /workspace/e2e-tests \
+  "$IMAGE_NAME" \
+  bash -lc "
+    set -euo pipefail
+    export SHARED_GRADLE_HOME=/workspace/e2e-tests/gradle-home
+    export LOCAL_MAVEN_REPO=/tmp/e2e-m2
+    echo 'Publishing plugin to local Maven repo...'
+    (cd /workspace && GRADLE_USER_HOME=\"\$SHARED_GRADLE_HOME\" ./gradlew publishToMavenLocal -Dmaven.repo.local=\"\$LOCAL_MAVEN_REPO\" -q)
+    shellspec
+  "

@@ -5,6 +5,7 @@ build/
 !**/src/test/**/build/
 .kotlin
 .idea
+e2e-tests/gradle-home/
 
 ### IntelliJ IDEA ###
 .idea/modules.xml
@@ -41,4 +42,4 @@ bin/
 .vscode/
 
 ### Mac OS ###
-.DS_Storee2e-tests/gradle-home/
+.DS_Store

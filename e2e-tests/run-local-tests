@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+SHARED_GRADLE_HOME="$SCRIPT_DIR/gradle-home"
+LOCAL_MAVEN_REPO="$(mktemp -d)/m2"
+export SHARED_GRADLE_HOME LOCAL_MAVEN_REPO
+
+cleanup() {
+  GRADLE_USER_HOME="$SHARED_GRADLE_HOME" "$PROJECT_ROOT/gradlew" --stop >/dev/null 2>&1 || true
+  rm -rf "$LOCAL_MAVEN_REPO"
+}
+trap cleanup EXIT
+
+echo "Publishing plugin to local Maven repo..."
+(
+  cd "$PROJECT_ROOT"
+  GRADLE_USER_HOME="$SHARED_GRADLE_HOME" \
+    ./gradlew publishToMavenLocal -Dmaven.repo.local="$LOCAL_MAVEN_REPO" -q
+)
+
+cd "$SCRIPT_DIR"
+shellspec
