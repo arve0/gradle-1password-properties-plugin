@@ -15,7 +15,7 @@ GITHUB_TOKEN=op://Personal/Github Personal Access Token/token
 
 ```kotlin
 plugins {
-    id("io.github.arve0.1password.properties") version "0.1.0"
+    id("io.github.arve0.1password.properties") version "1.0.0"
 }
 
 // Properties with op:// values are exposed as Provider<String>.
@@ -150,7 +150,7 @@ Run functional tests only:
 ### Releasing to Gradle Plugin Portal
 
 ```bash
-gh release create v0.1.0 --generate-notes
+gh release create v1.0.0 --generate-notes
 ```
 
 This will trigger [release workflow](.github/workflows/release-publish.yml) and publish the plugin to the Gradle Plugin Portal.
@@ -215,6 +215,6 @@ plugins {
 
    ```kotlin
    plugins {
-       id("io.github.arve0.1password.properties") version "0.1.0"
+       id("io.github.arve0.1password.properties") version "1.0.0"
    }
    ```
