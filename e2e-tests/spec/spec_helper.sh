@@ -1,0 +1,132 @@
+#!/usr/bin/env sh
+
+PROJECT_ROOT="$(cd "$SHELLSPEC_PROJECT_ROOT/.." && pwd)"
+
+# SHARED_GRADLE_HOME and LOCAL_MAVEN_REPO may be set by runner scripts to share
+# a single Gradle daemon and pre-built plugin across all parallel test workers.
+# If unset, each test falls back to an isolated per-fixture gradle home and
+# uses includeBuild to reference the plugin source directly.
+: "${SHARED_GRADLE_HOME:=}"
+: "${LOCAL_MAVEN_REPO:=}"
+
+TMP_DIR=
+FIXTURE_DIR=
+FIXTURE_GRADLE_HOME=
+OP_MOCK=
+LAST_OUTPUT_FILE=
+
+# Call in a BeforeEach after setup_fixture to give this test its own Gradle
+# daemon. Required when the test calls stop_gradle_daemon or scans gradle-home
+# for secrets, to avoid interfering with parallel tests sharing SHARED_GRADLE_HOME.
+use_isolated_gradle_home() {
+  FIXTURE_GRADLE_HOME="$FIXTURE_DIR/gradle-home"
+}
+
+setup_fixture() {
+  TMP_DIR="$(mktemp -d)"
+  FIXTURE_DIR="$TMP_DIR/fixture"
+  FIXTURE_GRADLE_HOME="${SHARED_GRADLE_HOME:-$FIXTURE_DIR/gradle-home}"
+  mkdir -p "$FIXTURE_DIR"
+  LAST_OUTPUT_FILE="$TMP_DIR/last-output.log"
+
+  if [ -n "$LOCAL_MAVEN_REPO" ]; then
+    cat > "$FIXTURE_DIR/settings.gradle.kts" <<EOF
+pluginManagement {
+    repositories {
+        maven { url = uri("$LOCAL_MAVEN_REPO") }
+        gradlePluginPortal()
+    }
+}
+rootProject.name = "functional-test"
+EOF
+    cat > "$FIXTURE_DIR/build.gradle.kts" <<'EOF'
+plugins {
+    id("io.github.arve0.1password.properties") version "dev-SNAPSHOT"
+}
+
+tasks.register("printToken") {
+    val token = project.property("TOKEN") as org.gradle.api.provider.Provider<*>
+    doLast {
+        println("TOKEN=${token.get()}")
+    }
+}
+EOF
+  else
+    cat > "$FIXTURE_DIR/settings.gradle.kts" <<EOF
+pluginManagement {
+    includeBuild("$PROJECT_ROOT")
+}
+rootProject.name = "functional-test"
+EOF
+    cat > "$FIXTURE_DIR/build.gradle.kts" <<'EOF'
+plugins {
+    id("io.github.arve0.1password.properties")
+}
+
+tasks.register("printToken") {
+    val token = project.property("TOKEN") as org.gradle.api.provider.Provider<*>
+    doLast {
+        println("TOKEN=${token.get()}")
+    }
+}
+EOF
+  fi
+}
+
+cleanup_fixture() {
+  if [ -n "${TMP_DIR:-}" ] && [ -d "$TMP_DIR" ]; then
+    rm -rf "$TMP_DIR"
+  fi
+}
+
+write_gradle_properties() {
+  token_property="$1"
+  cat > "$FIXTURE_DIR/gradle.properties" <<EOF
+$token_property
+onePassword.op.command=$OP_MOCK
+EOF
+}
+
+run_gradle_capture() {
+  status_file="$TMP_DIR/status"
+  (
+    cd "$FIXTURE_DIR" || exit 1
+    GRADLE_USER_HOME="$FIXTURE_GRADLE_HOME" \
+      "$PROJECT_ROOT/gradlew" --stacktrace "$@" >"$LAST_OUTPUT_FILE" 2>&1
+    echo "$?" > "$status_file"
+  )
+  if [ -f "$status_file" ]; then
+    cat "$status_file"
+  else
+    echo 1
+  fi
+}
+
+run_gradle() {
+  status="$(run_gradle_capture "$@")"
+  cat "$LAST_OUTPUT_FILE"
+  return "$status"
+}
+
+stop_gradle_daemon() {
+  (
+    cd "$FIXTURE_DIR" || exit 1
+    GRADLE_USER_HOME="$FIXTURE_GRADLE_HOME" "$PROJECT_ROOT/gradlew" --stop >"$TMP_DIR/stop.log" 2>&1 || true
+  )
+}
+
+assert_no_secret_on_disk() {
+  secret="$1"
+  rg -a --no-ignore --fixed-strings -l "$secret" "$FIXTURE_DIR/.gradle" "$FIXTURE_GRADLE_HOME" >"$TMP_DIR/rg-findings.log" 2>&1 || true
+  rg_findings="$(cat "$TMP_DIR/rg-findings.log")"
+  fd . "$FIXTURE_DIR/.gradle" --type f -0 2>/dev/null | xargs -0 strings 2>/dev/null | grep -F "$secret" >"$TMP_DIR/fd-findings.log" 2>&1 || true
+  fd . "$FIXTURE_GRADLE_HOME" --type f -0 2>/dev/null | xargs -0 strings 2>/dev/null | grep -F "$secret" >>"$TMP_DIR/fd-findings.log" 2>&1 || true
+  fd_findings="$(cat "$TMP_DIR/fd-findings.log")"
+  if [ -n "$rg_findings" ] || [ -n "$fd_findings" ]; then
+    echo "secret found on disk"
+    echo "$rg_findings"
+    echo "$fd_findings"
+    return 1
+  fi
+  echo "secret not found"
+}

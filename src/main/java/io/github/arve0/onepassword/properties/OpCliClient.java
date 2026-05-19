@@ -23,6 +23,14 @@ final class OpCliClient implements SecretReferenceReader {
         this.timeout = timeout;
     }
 
+    String getCommand() {
+        return command;
+    }
+
+    long getTimeoutMillis() {
+        return timeout.toMillis();
+    }
+
     static OpCliClient fromProject(Project project) {
         String command = stringProperty(project, "onePassword.op.command", DEFAULT_COMMAND);
         Duration timeout = timeoutProperty(project, "onePassword.op.timeoutMillis", DEFAULT_TIMEOUT);

@@ -2,43 +2,54 @@ package io.github.arve0.onepassword.properties;
 
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 
 /**
- * A Gradle plugin that resolves project properties containing references to 1Password secrets.
+ * A Gradle plugin that exposes 1Password secret references as lazy {@code Provider<String>}
+ * extra properties.
  *
- * This plugin scans through all project properties, and if a property value begins with the
- * 1Password-specific prefix ("op://"), it is resolved by communicating with the 1Password CLI.
- * Resolved secrets are then stored in the Gradle project's extra properties, making them
- * accessible like regular project properties.
+ * <p>For each project property whose value starts with {@code op://}, the plugin:
+ * <ol>
+ *   <li>Validates the reference eagerly (fail-fast at configuration time for obviously invalid refs).</li>
+ *   <li>Registers a {@link Provider}{@code <String>} backed by {@link OpReadValueSource} in extra
+ *       properties, without resolving the secret immediately.</li>
+ * </ol>
  *
- * The plugin uses the following components:
- * - {@link OpCliClient}: Interfaces with the 1Password CLI to resolve secret references.
- * - {@link ProjectPropertyResolver}: Handles the logic for interpreting and resolving property values.
- *
- * Notes:
- * - The plugin assumes the 1Password CLI is installed and available in the system PATH.
- * - Invalid or unresolvable secrets with the "op://" prefix will result in errors being thrown.
- * - The CLI command and timeout configuration can be overridden using specific project properties.
- *
- * Responsibilities:
- * - Iterates through all defined project properties.
- * - Checks if the property value is a String and starts with the "op://" prefix.
- * - Resolves valid 1Password references and stores the resolved value in the project's extra properties.
+ * <p>Whether the secret ends up in the configuration cache depends on when the caller calls
+ * {@code .get()} on the provider:
+ * <ul>
+ *   <li><b>Execution time</b> (e.g. inside {@code doLast}): secret is NOT stored in the cache;
+ *       {@code op} is called once per build at execution time.</li>
+ *   <li><b>Configuration time</b> (e.g. for repository credentials): Gradle fingerprints
+ *       the value and stores it in the cache; {@code op} is called on every build for
+ *       fingerprint validation.</li>
+ * </ul>
  */
 public final class OnePasswordGradlePropertiesPlugin implements Plugin<Project> {
     private static final String OP_PREFIX = "op://";
 
     @Override
     public void apply(Project project) {
-        ProjectPropertyResolver resolver = new ProjectPropertyResolver(OpCliClient.fromProject(project));
+        OpCliClient cli = OpCliClient.fromProject(project);
         ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
+
         project.getProperties().forEach((key, value) -> {
             if (!(value instanceof String stringValue) || !stringValue.startsWith(OP_PREFIX)) {
                 return;
             }
-            String resolved = resolver.resolve(key, stringValue);
-            extraProperties.set(key, resolved);
+            if (stringValue.length() <= OP_PREFIX.length()) {
+                throw new PropertyResolutionException(
+                        "Property '" + key + "' contains an invalid 1Password reference: '" + stringValue + "'."
+                );
+            }
+            Provider<String> provider = project.getProviders().of(OpReadValueSource.class, spec -> {
+                spec.getParameters().getReference().set(stringValue);
+                spec.getParameters().getPropertyName().set(key);
+                spec.getParameters().getCommand().set(cli.getCommand());
+                spec.getParameters().getTimeoutMillis().set(cli.getTimeoutMillis());
+            });
+            extraProperties.set(key, provider);
         });
     }
 }
