@@ -2,6 +2,7 @@
 
 This plugin resolves Gradle project properties prefixed with `op://` by calling the 1Password CLI (`op read <reference>`). The main goal is to avoid secrets being stored to disk.
 
+[io.github.arve0.1password.properties @ Gradle Plugin Portal](https://plugins.gradle.org/plugin/io.github.arve0.1password.properties)
 
 ## Usage
 
