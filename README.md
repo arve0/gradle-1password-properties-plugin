@@ -130,6 +130,8 @@ onePassword.op.timeoutMillis=10000
 ## Development
 ### Building and testing
 
+Compile, test and package:
+
 ```bash
 ./gradlew build
 ```
@@ -140,10 +142,10 @@ Run unit tests only:
 ./gradlew test
 ```
 
-Run functional tests only:
+Run functional e2e tests:
 
 ```bash
-./gradlew functionalTest
+./e2e-tests/run-tests
 ```
 
 
