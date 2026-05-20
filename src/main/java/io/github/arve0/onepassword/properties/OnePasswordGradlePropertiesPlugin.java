@@ -32,6 +32,7 @@ public final class OnePasswordGradlePropertiesPlugin implements Plugin<Project> 
     @Override
     public void apply(Project project) {
         OpCliClient cli = OpCliClient.fromProject(project);
+        project.getExtensions().create("onePassword", OnePasswordExtension.class, project, cli);
         ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
 
         project.getProperties().forEach((key, value) -> {

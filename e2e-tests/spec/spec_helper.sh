@@ -115,6 +115,47 @@ stop_gradle_daemon() {
   )
 }
 
+# Sets environment variables needed for envsubst rendering of fixture templates.
+# Call after setup_fixture to set up the substitution context.
+setup_fixture_vars() {
+  if [ -n "$LOCAL_MAVEN_REPO" ]; then
+    PLUGIN_VERSION_DECLARATION='version "dev-SNAPSHOT"'
+    PLUGIN_REPO_BLOCK='repositories { maven { url = uri("'"$LOCAL_MAVEN_REPO"'") }; gradlePluginPortal() }'
+  else
+    PLUGIN_VERSION_DECLARATION=""
+    PLUGIN_REPO_BLOCK='includeBuild("'"$PROJECT_ROOT"'")'
+  fi
+  export PLUGIN_VERSION_DECLARATION PLUGIN_REPO_BLOCK
+}
+
+# Render a fixture template file with envsubst and write to the target path.
+# Only substitutes the listed variables, leaving Kotlin ${...} syntax intact.
+# Usage: render_fixture_file <source_template> <target_path> <VAR_LIST>
+# VAR_LIST is a space-separated list of shell variable names to substitute,
+# e.g., '${PLUGIN_VERSION_DECLARATION} ${PLUGIN_REPO_BLOCK}'
+render_fixture_file() {
+  source="$1"
+  target="$2"
+  vars="$3"
+  envsubst "$vars" < "$source" > "$target"
+}
+
+# Copy and render all template files from a fixture folder into FIXTURE_DIR.
+# Calls setup_fixture_vars if not already called.
+# Usage: prepare_fixture <fixture_name>
+# fixture_name is a folder under e2e-tests/fixtures/
+prepare_fixture() {
+  fixture_name="$1"
+  fixture_src="$SHELLSPEC_PROJECT_ROOT/fixtures/$fixture_name"
+  setup_fixture_vars
+  for src_file in "$fixture_src"/*.gradle.kts; do
+    [ -f "$src_file" ] || continue
+    filename="$(basename "$src_file")"
+    render_fixture_file "$src_file" "$FIXTURE_DIR/$filename" \
+      '${PLUGIN_VERSION_DECLARATION} ${PLUGIN_REPO_BLOCK} ${OP_MOCK}'
+  done
+}
+
 assert_no_secret_on_disk() {
   secret="$1"
   rg -a --no-ignore --fixed-strings -l "$secret" "$FIXTURE_DIR/.gradle" "$FIXTURE_GRADLE_HOME" >"$TMP_DIR/rg-findings.log" 2>&1 || true
