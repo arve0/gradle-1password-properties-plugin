@@ -87,7 +87,7 @@ pluginManagement {
 --jobs 4
 ```
 
-Eller i `run-tests` / `run-local-tests`:
+Eller i `run-tests-locally` / `run-tests-in-container`:
 ```sh
 shellspec --jobs "$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
 ```

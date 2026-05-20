@@ -146,7 +146,9 @@ Run unit tests only:
 Run functional e2e tests:
 
 ```bash
-./e2e-tests/run-tests
+./e2e-tests/run-tests-locally
+# or
+./e2e-tests/run-tests-in-container
 ```
 
 
