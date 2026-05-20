@@ -31,6 +31,67 @@ tasks.register("printToken") {
 }
 ```
 
+Run the task:
+
+```bash
+./gradlew printToken
+```
+
+### Usage from buildSrc convention plugins
+
+When this plugin is used inside a precompiled script plugin in `buildSrc`
+(for example `buildSrc/src/main/kotlin/my.convention.gradle.kts`), Gradle has
+one important rule:
+
+- Do **not** declare a plugin version in the precompiled script plugin file.
+- The plugin must be added as an implementation dependency of `buildSrc`.
+
+Use the plugin marker artifact in `buildSrc/build.gradle.kts` (no
+`includeBuild` needed):
+
+```kotlin
+plugins {
+    `kotlin-dsl`
+}
+
+repositories {
+    gradlePluginPortal()
+}
+
+dependencies {
+    implementation("io.github.arve0.1password.properties:io.github.arve0.1password.properties.gradle.plugin:1.0.0")
+}
+```
+
+`buildSrc/src/main/kotlin/my.convention.gradle.kts`:
+
+```kotlin
+plugins {
+    id("io.github.arve0.1password.properties")
+}
+
+tasks.register("printTokenFromConvention") {
+    val token = project.property("TOKEN") as org.gradle.api.provider.Provider<*>
+    doLast {
+        println("TOKEN=${token.get()}")
+    }
+}
+```
+
+Root `build.gradle.kts`:
+
+```kotlin
+plugins {
+    id("my.convention")
+}
+```
+
+Run the task from the convention plugin:
+
+```bash
+./gradlew printTokenFromConvention
+```
+
 ### Configuration cache
 
 This plugin is compatible with the [Gradle configuration cache](https://docs.gradle.org/current/userguide/configuration_cache.html).
@@ -189,6 +250,51 @@ pluginManagement {
 ```
 
 Then apply the plugin as normal — no version number is needed:
+
+```kotlin
+plugins {
+    id("io.github.arve0.1password.properties")
+}
+```
+
+##### Using from buildSrc convention plugin (local source)
+
+Use this only when developing/testing the plugin source locally.
+
+Root `settings.gradle.kts`:
+
+```kotlin
+pluginManagement {
+    includeBuild("/path/to/gradle-1password-properties-plugin")
+}
+```
+
+`buildSrc/settings.gradle.kts`:
+
+```kotlin
+pluginManagement {
+    includeBuild("/path/to/gradle-1password-properties-plugin")
+}
+```
+
+`buildSrc/build.gradle.kts`:
+
+```kotlin
+plugins {
+    `kotlin-dsl`
+}
+
+repositories {
+    gradlePluginPortal()
+}
+
+dependencies {
+    implementation("io.github.arve0.1password.properties:io.github.arve0.1password.properties.gradle.plugin")
+}
+```
+
+Apply the plugin **without** version in
+`buildSrc/src/main/kotlin/my.convention.gradle.kts`:
 
 ```kotlin
 plugins {
