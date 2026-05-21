@@ -163,6 +163,9 @@ any value passed to `println` is captured by the Gradle daemon in its log file
 - Secret values are never included in plugin error messages.
 - The `op://` reference itself (not the secret) is stored in the configuration
   cache as a `ValueSource` parameter.
+- **In-memory cache**: each unique `op://` reference is resolved at most once per
+  build, regardless of how many projects or tasks call `.get()` on it. This saves
+  time in large monorepos where many projects share the same secrets.
 
 
 ## Configuration
