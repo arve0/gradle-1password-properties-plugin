@@ -23,10 +23,15 @@ import java.time.Duration;
  */
 public abstract class OpReadValueSource implements ValueSource<String, OpReadValueSource.Parameters> {
 
+    /** Parameters passed to {@link OpReadValueSource} for resolving a single 1Password secret. */
     public interface Parameters extends ValueSourceParameters {
+        /** The {@code op://} reference to resolve (e.g. {@code op://vault/item/field}). */
         Property<String> getReference();
+        /** The Gradle project property key — used in error messages. */
         Property<String> getPropertyName();
+        /** The {@code op} CLI command (e.g. {@code op} or a custom path). */
         Property<String> getCommand();
+        /** Timeout in milliseconds for the {@code op} CLI subprocess. */
         Property<Long> getTimeoutMillis();
     }
 

@@ -13,6 +13,7 @@ TMP_DIR=
 FIXTURE_DIR=
 FIXTURE_GRADLE_HOME=
 OP_MOCK=
+OP_MOCK_OUTPUT=
 LAST_OUTPUT_FILE=
 
 # Call in a BeforeEach after setup_fixture to give this test its own Gradle
@@ -28,49 +29,7 @@ setup_fixture() {
   FIXTURE_GRADLE_HOME="${SHARED_GRADLE_HOME:-$FIXTURE_DIR/gradle-home}"
   mkdir -p "$FIXTURE_DIR"
   LAST_OUTPUT_FILE="$TMP_DIR/last-output.log"
-
-  if [ -n "$LOCAL_MAVEN_REPO" ]; then
-    cat > "$FIXTURE_DIR/settings.gradle.kts" <<EOF
-pluginManagement {
-    repositories {
-        maven { url = uri("$LOCAL_MAVEN_REPO") }
-        gradlePluginPortal()
-    }
-}
-rootProject.name = "functional-test"
-EOF
-    cat > "$FIXTURE_DIR/build.gradle.kts" <<'EOF'
-plugins {
-    id("io.github.arve0.1password.properties") version "dev-SNAPSHOT"
-}
-
-tasks.register("printToken") {
-    val token = project.property("TOKEN") as org.gradle.api.provider.Provider<*>
-    doLast {
-        println("TOKEN=${token.get()}")
-    }
-}
-EOF
-  else
-    cat > "$FIXTURE_DIR/settings.gradle.kts" <<EOF
-pluginManagement {
-    includeBuild("$PROJECT_ROOT")
-}
-rootProject.name = "functional-test"
-EOF
-    cat > "$FIXTURE_DIR/build.gradle.kts" <<'EOF'
-plugins {
-    id("io.github.arve0.1password.properties")
-}
-
-tasks.register("printToken") {
-    val token = project.property("TOKEN") as org.gradle.api.provider.Provider<*>
-    doLast {
-        println("TOKEN=${token.get()}")
-    }
-}
-EOF
-  fi
+  prepare_fixture default
 }
 
 cleanup_fixture() {
@@ -80,11 +39,10 @@ cleanup_fixture() {
 }
 
 write_gradle_properties() {
-  token_property="$1"
-  cat > "$FIXTURE_DIR/gradle.properties" <<EOF
-$token_property
-onePassword.op.command=$OP_MOCK
-EOF
+  EXTRA_PROPERTIES="$1" \
+    render_fixture_file "$SHELLSPEC_PROJECT_ROOT/fixtures/gradle.properties" \
+      "$FIXTURE_DIR/gradle.properties" \
+      '${EXTRA_PROPERTIES} ${OP_MOCK}'
 }
 
 run_gradle_capture() {
@@ -113,6 +71,77 @@ stop_gradle_daemon() {
     cd "$FIXTURE_DIR" || exit 1
     GRADLE_USER_HOME="$FIXTURE_GRADLE_HOME" "$PROJECT_ROOT/gradlew" --stop >"$TMP_DIR/stop.log" 2>&1 || true
   )
+}
+
+# Renders the shared op-mock fixture and sets OP_MOCK.
+# Override OP_MOCK_OUTPUT before calling to change what the mock prints.
+# Default output: "functional-secret"
+create_op_mock() {
+  OP_MOCK="$TMP_DIR/op-mock.sh"
+  OP_MOCK_OUTPUT="${OP_MOCK_OUTPUT:-functional-secret}"
+  export OP_MOCK OP_MOCK_OUTPUT
+  render_fixture_file "$SHELLSPEC_PROJECT_ROOT/fixtures/op-mock.sh" "$OP_MOCK" '${OP_MOCK_OUTPUT}'
+  chmod +x "$OP_MOCK"
+}
+
+# Creates a stateful op mock that counts invocations and reads the secret from a file.
+# Sets: OP_MOCK, SECRET_FILE, INVOCATION_COUNT_FILE
+# Write a value to SECRET_FILE to change what the mock returns between builds.
+create_stateful_op_mock() {
+  SECRET_FILE="$TMP_DIR/secret.txt"
+  INVOCATION_COUNT_FILE="$TMP_DIR/op-invocations.txt"
+  printf '%s\n' "functional-secret" > "$SECRET_FILE"
+  OP_MOCK="$TMP_DIR/op-mock.sh"
+  export OP_MOCK SECRET_FILE INVOCATION_COUNT_FILE
+  render_fixture_file "$SHELLSPEC_PROJECT_ROOT/fixtures/op-mock-stateful.sh" "$OP_MOCK" \
+    '${SECRET_FILE} ${INVOCATION_COUNT_FILE}'
+  chmod +x "$OP_MOCK"
+}
+
+# Sets environment variables needed for envsubst rendering of fixture templates.
+# Call after setup_fixture to set up the substitution context.
+setup_fixture_vars() {
+  if [ -n "$LOCAL_MAVEN_REPO" ]; then
+    PLUGIN_VERSION_DECLARATION='version "dev-SNAPSHOT"'
+    PLUGIN_REPO_BLOCK='repositories { maven { url = uri("'"$LOCAL_MAVEN_REPO"'") }; gradlePluginPortal() }'
+    BUILDSRC_REPOSITORIES='repositories { maven { url = uri("'"$LOCAL_MAVEN_REPO"'") }; gradlePluginPortal() }'
+    BUILDSRC_DEPENDENCIES='dependencies { implementation("io.github.arve0.1password.properties:io.github.arve0.1password.properties.gradle.plugin:dev-SNAPSHOT") }'
+  else
+    PLUGIN_VERSION_DECLARATION=""
+    PLUGIN_REPO_BLOCK='includeBuild("'"$PROJECT_ROOT"'")'
+    BUILDSRC_REPOSITORIES='repositories { gradlePluginPortal() }'
+    BUILDSRC_DEPENDENCIES=""
+  fi
+  export PLUGIN_VERSION_DECLARATION PLUGIN_REPO_BLOCK BUILDSRC_REPOSITORIES BUILDSRC_DEPENDENCIES
+}
+
+# Render a fixture template file with envsubst and write to the target path.
+# Only substitutes the listed variables, leaving Kotlin ${...} syntax intact.
+# Usage: render_fixture_file <source_template> <target_path> <VAR_LIST>
+# VAR_LIST is a space-separated list of shell variable names to substitute,
+# e.g., '${PLUGIN_VERSION_DECLARATION} ${PLUGIN_REPO_BLOCK}'
+render_fixture_file() {
+  source="$1"
+  target="$2"
+  vars="$3"
+  envsubst "$vars" < "$source" > "$target"
+}
+
+# Copy and render all template files from a fixture folder into FIXTURE_DIR.
+# Calls setup_fixture_vars if not already called.
+# Usage: prepare_fixture <fixture_name>
+# fixture_name is a folder under e2e-tests/fixtures/
+prepare_fixture() {
+  fixture_name="$1"
+  fixture_src="$SHELLSPEC_PROJECT_ROOT/fixtures/$fixture_name"
+  setup_fixture_vars
+  find "$fixture_src" -type f | while IFS= read -r src_file; do
+    rel_path="${src_file#"$fixture_src"/}"
+    target="$FIXTURE_DIR/$rel_path"
+    mkdir -p "$(dirname "$target")"
+    render_fixture_file "$src_file" "$target" \
+      '${PLUGIN_VERSION_DECLARATION} ${PLUGIN_REPO_BLOCK} ${OP_MOCK} ${BUILDSRC_REPOSITORIES} ${BUILDSRC_DEPENDENCIES}'
+  done
 }
 
 assert_no_secret_on_disk() {

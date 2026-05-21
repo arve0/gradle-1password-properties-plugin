@@ -5,27 +5,20 @@ This plugin resolves Gradle project properties prefixed with `op://` by calling 
 [io.github.arve0.1password.properties @ Gradle Plugin Portal](https://plugins.gradle.org/plugin/io.github.arve0.1password.properties)
 
 ## Usage
-
-`gradle.properties`:
-
-```properties
-GITHUB_TOKEN=op://Personal/Github Personal Access Token/token
-```
+The plugin tries to be a drop in replacement for `project.property`, but needs an extra `.get()` when accessing the secret. Example:
 
 `build.gradle.kts`:
 
 ```kotlin
 plugins {
-    id("io.github.arve0.1password.properties") version "1.0.0"
+    id("io.github.arve0.1password.properties") version "1.1.0"
 }
 
-// Properties with op:// values are exposed as Provider<String>.
-val githubToken = project.property("GITHUB_TOKEN") as Provider<*>
+val githubToken: Provider<String> = onePassword.property("GITHUB_TOKEN")
 
 tasks.register("printToken") {
     doLast {
-        // .get() is called at execution time — the secret is resolved here,
-        // not stored in the configuration cache.
+        // Resolved at execution time — not stored in configuration cache
         println("token: ${githubToken.get()}")
     }
 }
@@ -36,6 +29,18 @@ Run the task:
 ```bash
 ./gradlew printToken
 ```
+
+### Property sources
+
+`onePassword.property("KEY")` resolves from all standard Gradle property sources with normal precedence:
+
+| Source | Example |
+|---|---|
+| `gradle.properties` | `GITHUB_TOKEN=op://Personal/Github/token` |
+| Environment variable | `ORG_GRADLE_PROJECT_GITHUB_TOKEN=my-plain-token` |
+| Command-line flag | `-PGITHUB_TOKEN=my-plain-token` |
+
+Plain string values and `op://` references behave identically from the user's perspective — the plugin resolves `op://` references lazily and returns the value as `Provider<String>` either way.
 
 ### Usage from buildSrc convention plugins
 
@@ -59,7 +64,7 @@ repositories {
 }
 
 dependencies {
-    implementation("io.github.arve0.1password.properties:io.github.arve0.1password.properties.gradle.plugin:1.0.0")
+    implementation("io.github.arve0.1password.properties:io.github.arve0.1password.properties.gradle.plugin:1.1.0")
 }
 ```
 
@@ -71,7 +76,7 @@ plugins {
 }
 
 tasks.register("printTokenFromConvention") {
-    val token = project.property("TOKEN") as org.gradle.api.provider.Provider<*>
+    val token: Provider<String> = onePassword.property("TOKEN")
     doLast {
         println("TOKEN=${token.get()}")
     }
@@ -95,9 +100,8 @@ Run the task from the convention plugin:
 ### Configuration cache
 
 This plugin is compatible with the [Gradle configuration cache](https://docs.gradle.org/current/userguide/configuration_cache.html).
-Properties with `op://` values are exposed as `Provider<String>`, so whether
-a secret ends up in the configuration cache depends entirely on **when** your
-build calls `.get()`:
+Properties are exposed as `Provider<String>`, so whether a secret ends up in
+the configuration cache depends entirely on **when** your build calls `.get()`:
 
 **Execution time (recommended)** — call `.get()` inside `doLast` or another
 task action. Gradle does not store the value in the cache; `op` is called once
@@ -105,10 +109,10 @@ per build when the task runs.
 
 ```kotlin
 tasks.register("deploy") {
-    val token = project.property("DEPLOY_TOKEN") as Provider<*>
+    val token: Provider<String> = onePassword.property("DEPLOY_TOKEN")
     doLast {
         // resolved at execution time, not stored in configuration cache
-        callDeployApi(token.get().toString())
+        callDeployApi(token.get())
     }
 }
 ```
@@ -121,8 +125,8 @@ repositories {
     maven {
         url = uri("https://maven.pkg.github.com/myorg/myrepo")
         credentials {
-            username = (project.property("GITHUB_USER") as Provider<*>).get().toString()
-            password = (project.property("GITHUB_KEY") as Provider<*>).get().toString()
+            username = onePassword.property("GITHUB_USER").get()
+            password = onePassword.property("GITHUB_KEY").get()
         }
     }
 }
@@ -154,7 +158,7 @@ any value passed to `println` is captured by the Gradle daemon in its log file
 
 - String property values starting with `op://` are resolved lazily through
   `op read` and exposed as `Provider<String>`.
-- String property values not starting with `op://` are left unchanged.
+- Plain string values are also exposed as `Provider<String>` — no `op` call is made.
 - The resolved value is trimmed before being returned.
 - Secret values are never included in plugin error messages.
 - The `op://` reference itself (not the secret) is stored in the configuration
@@ -207,16 +211,23 @@ Run unit tests only:
 Run functional e2e tests:
 
 ```bash
-./e2e-tests/run-tests-locally
+./e2e-tests/run-tests
 # or
 ./e2e-tests/run-tests-in-container
+```
+
+Run a single spec file (faster, as it reuses shared Gradle daemon and pre-built plugin):
+
+```bash
+cd e2e-tests
+./run-tests spec/resolve_string_property_spec.sh
 ```
 
 
 ### Releasing to Gradle Plugin Portal
 
 ```bash
-gh release create v1.0.0 --generate-notes
+gh release create v1.2.0 --generate-notes
 ```
 
 This will trigger [release workflow](.github/workflows/release-publish.yml) and publish the plugin to the Gradle Plugin Portal.
@@ -326,6 +337,6 @@ plugins {
 
    ```kotlin
    plugins {
-       id("io.github.arve0.1password.properties") version "1.0.0"
+       id("io.github.arve0.1password.properties") version "1.1.0"
    }
    ```

@@ -22,4 +22,4 @@ echo "Publishing plugin to local Maven repo..."
 )
 
 cd "$SCRIPT_DIR"
-shellspec
+shellspec ${1:+"$1"}
