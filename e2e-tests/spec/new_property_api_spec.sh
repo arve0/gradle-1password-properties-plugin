@@ -4,16 +4,6 @@ Describe 'onePassword.property() API'
   BeforeEach 'setup_fixture'
   AfterEach 'cleanup_fixture'
 
-  create_op_mock() {
-    OP_MOCK="$TMP_DIR/op-mock.sh"
-    cat > "$OP_MOCK" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-echo "mocked-secret"
-EOF
-    chmod +x "$OP_MOCK"
-  }
-
   BeforeEach 'create_op_mock'
   BeforeEach 'prepare_fixture api_new_property'
 
@@ -30,7 +20,7 @@ EOF
 
     When run run_gradle printToken
     The status should be success
-    The output should include "TOKEN=mocked-secret"
+    The output should include "TOKEN=functional-secret"
   End
 
   It 'resolves plain property from -P flag'

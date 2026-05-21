@@ -2,30 +2,8 @@
 
 Describe 'configuration cache behaviour'
   BeforeEach 'setup_fixture'
+  BeforeEach 'create_stateful_op_mock'
   AfterEach 'cleanup_fixture'
-
-  # Creates a stateful op mock that counts invocations and reads from a secret file.
-  # Sets: OP_MOCK, SECRET_FILE, INVOCATION_COUNT_FILE
-  create_stateful_op_mock() {
-    SECRET_FILE="$TMP_DIR/secret.txt"
-    INVOCATION_COUNT_FILE="$TMP_DIR/op-invocations.txt"
-    printf '%s\n' "functional-secret" > "$SECRET_FILE"
-    OP_MOCK="$TMP_DIR/op-mock.sh"
-    cat > "$OP_MOCK" <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
-counter_file="$INVOCATION_COUNT_FILE"
-if [ -f "\$counter_file" ]; then
-  count=\$(cat "\$counter_file")
-else
-  count=0
-fi
-count=\$((count + 1))
-printf '%s' "\$count" > "\$counter_file"
-cat "$SECRET_FILE"
-EOF
-    chmod +x "$OP_MOCK"
-  }
 
   read_invocations() {
     if [ -f "$INVOCATION_COUNT_FILE" ]; then cat "$INVOCATION_COUNT_FILE"; else echo 0; fi
@@ -41,7 +19,6 @@ EOF
   }
 
   It 'reuses the cache on second build and calls op on every build'
-    create_stateful_op_mock
     write_gradle_properties "TOKEN=op://vault/item/field"
 
     run_with_cache
@@ -60,7 +37,6 @@ EOF
   End
 
   It 'reads the changed secret on second build when cache is reused'
-    create_stateful_op_mock
     write_gradle_properties "TOKEN=op://vault/item/field"
 
     run_with_cache
@@ -80,7 +56,6 @@ EOF
   End
 
   It 'calls op on every build even when configuration cache is warm'
-    create_stateful_op_mock
     write_gradle_properties "TOKEN=op://vault/item/field"
 
     run_with_cache
@@ -99,7 +74,6 @@ EOF
   End
 
   It 'reads the changed secret when --no-configuration-cache bypasses the cache'
-    create_stateful_op_mock
     write_gradle_properties "TOKEN=op://vault/item/field"
 
     run_gradle_capture printToken >/dev/null
@@ -119,7 +93,6 @@ EOF
   End
 
   It 'stores the configuration cache without any cache problems'
-    create_stateful_op_mock
     write_gradle_properties "TOKEN=op://vault/item/field"
 
     When run run_gradle printToken --configuration-cache --configuration-cache-problems=warn --info

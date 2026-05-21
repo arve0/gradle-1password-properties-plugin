@@ -4,40 +4,8 @@ Describe 'plain string project property behavior'
   BeforeEach 'setup_fixture'
   AfterEach 'cleanup_fixture'
 
-  create_op_mock() {
-    OP_MOCK="$TMP_DIR/op-mock.sh"
-    cat > "$OP_MOCK" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-echo "functional-secret"
-EOF
-    chmod +x "$OP_MOCK"
-  }
-
   BeforeEach 'create_op_mock'
-
-  write_build_using_plugin_directly() {
-    if [ -n "$LOCAL_MAVEN_REPO" ]; then
-      plugin_decl='id("io.github.arve0.1password.properties") version "dev-SNAPSHOT"'
-    else
-      plugin_decl='id("io.github.arve0.1password.properties")'
-    fi
-    cat > "$FIXTURE_DIR/build.gradle.kts" <<EOF
-plugins {
-    $plugin_decl
-}
-
-val MY_PROP = project.property("MY_PROP")
-
-tasks.register("printProp") {
-    doLast {
-        println("MY_PROP=\$MY_PROP")
-    }
-}
-EOF
-  }
-
-  BeforeEach 'write_build_using_plugin_directly'
+  BeforeEach 'prepare_fixture plain_string_property'
 
   It 'does not crash when property is a regular string'
     write_gradle_properties "MY_PROP=hello-world"
@@ -56,7 +24,7 @@ EOF
   End
 
   It 'resolves property provided via -P as a plain string'
-    write_gradle_properties "onePassword.op.command=$OP_MOCK"
+    write_gradle_properties ""
 
     When run run_gradle printProp -PMY_PROP=cli-value
     The status should be success
