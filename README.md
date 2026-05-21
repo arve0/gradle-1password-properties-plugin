@@ -164,6 +164,14 @@ any value passed to `println` is captured by the Gradle daemon in its log file
 - The `op://` reference itself (not the secret) is stored in the configuration
   cache as a `ValueSource` parameter.
 
+### Multi-project builds
+
+In a multi-project (monorepo) build, each subproject has its own `ProviderFactory`,
+so Gradle's built-in `ValueSource` deduplication does not apply across subprojects.
+To avoid redundant `op` invocations the plugin maintains a JVM-level in-memory cache
+keyed by `op://` reference. Within a single Gradle daemon, each unique reference is
+resolved **at most once**, regardless of how many subprojects reference it.
+
 
 ## Configuration
 
