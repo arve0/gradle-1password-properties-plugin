@@ -5,20 +5,20 @@ This plugin resolves Gradle project properties prefixed with `op://` by calling 
 [io.github.arve0.1password.properties @ Gradle Plugin Portal](https://plugins.gradle.org/plugin/io.github.arve0.1password.properties)
 
 ## Usage
+The plugin tries to be a drop in replacement for `project.property`, but needs an extra `.get()` when accessing the secret. Example:
 
 `build.gradle.kts`:
 
 ```kotlin
 plugins {
-    id("io.github.arve0.1password.properties") version "1.0.0"
+    id("io.github.arve0.1password.properties") version "1.1.0"
 }
 
-// Works for op:// references AND plain string values
 val githubToken: Provider<String> = onePassword.property("GITHUB_TOKEN")
 
 tasks.register("printToken") {
     doLast {
-        // Resolved at execution time — not stored in configuration cache for op:// values
+        // Resolved at execution time — not stored in configuration cache
         println("token: ${githubToken.get()}")
     }
 }
@@ -64,7 +64,7 @@ repositories {
 }
 
 dependencies {
-    implementation("io.github.arve0.1password.properties:io.github.arve0.1password.properties.gradle.plugin:1.0.0")
+    implementation("io.github.arve0.1password.properties:io.github.arve0.1password.properties.gradle.plugin:1.1.0")
 }
 ```
 
@@ -211,16 +211,23 @@ Run unit tests only:
 Run functional e2e tests:
 
 ```bash
-./e2e-tests/run-tests-locally
+./e2e-tests/run-tests
 # or
 ./e2e-tests/run-tests-in-container
+```
+
+Run a single spec file (faster, as it reuses shared Gradle daemon and pre-built plugin):
+
+```bash
+cd e2e-tests
+./run-tests spec/resolve_string_property_spec.sh
 ```
 
 
 ### Releasing to Gradle Plugin Portal
 
 ```bash
-gh release create v1.0.0 --generate-notes
+gh release create v1.2.0 --generate-notes
 ```
 
 This will trigger [release workflow](.github/workflows/release-publish.yml) and publish the plugin to the Gradle Plugin Portal.
@@ -330,6 +337,6 @@ plugins {
 
    ```kotlin
    plugins {
-       id("io.github.arve0.1password.properties") version "1.0.0"
+       id("io.github.arve0.1password.properties") version "1.1.0"
    }
    ```
