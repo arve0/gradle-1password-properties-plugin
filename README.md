@@ -11,7 +11,7 @@ The plugin tries to be a drop in replacement for `project.property`, but needs a
 
 ```kotlin
 plugins {
-    id("io.github.arve0.1password.properties") version "1.1.0"
+    id("io.github.arve0.1password.properties") version "1.1.1"
 }
 
 val githubToken: Provider<String> = onePassword.property("GITHUB_TOKEN")
@@ -64,7 +64,7 @@ repositories {
 }
 
 dependencies {
-    implementation("io.github.arve0.1password.properties:io.github.arve0.1password.properties.gradle.plugin:1.1.0")
+    implementation("io.github.arve0.1password.properties:io.github.arve0.1password.properties.gradle.plugin:1.1.1")
 }
 ```
 
@@ -340,6 +340,6 @@ plugins {
 
    ```kotlin
    plugins {
-       id("io.github.arve0.1password.properties") version "1.1.0"
+       id("io.github.arve0.1password.properties") version "1.1.1"
    }
    ```
