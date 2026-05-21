@@ -21,6 +21,10 @@ public class OnePasswordExtension {
     private final Project project;
     private final OpCliClient cli;
 
+    /**
+     * @param project the Gradle project this extension is attached to
+     * @param cli the 1Password CLI client used to resolve {@code op://} references
+     */
     public OnePasswordExtension(Project project, OpCliClient cli) {
         this.project = project;
         this.cli = cli;
