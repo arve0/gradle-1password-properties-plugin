@@ -5,10 +5,15 @@ import org.gradle.api.Project;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 /**
- * A Gradle plugin that exposes 1Password secret references as lazy {@code Provider<String>}
- * properties.
+ * A Gradle plugin that resolves {@code op://} project properties via the 1Password CLI and
+ * exposes them as lazy {@code Provider<String>} extra properties.
  *
- * Usage, build.gradle.kts:
+ * <p>At plugin init, every project property whose value starts with {@code op://} is registered
+ * as a lazy {@link org.gradle.api.provider.Provider}{@code <String>} in extra properties.
+ * Plain string properties are left unchanged. The {@code onePassword} extension is then
+ * registered to give build scripts a typed API for accessing any property as a provider.
+ *
+ * <p>Usage, {@code build.gradle.kts}:
  * <pre>
  * plugins {
  *  id("io.github.arve0.onepassword.properties")
@@ -38,11 +43,27 @@ public final class OnePasswordGradlePropertiesPlugin implements Plugin<Project> 
 
     @Override
     public void apply(Project project) {
-        SecretCacheBuildService cacheService = project.getGradle().getSharedServices()
-                .registerIfAbsent(SecretCacheBuildService.SERVICE_NAME, SecretCacheBuildService.class, spec -> {})
-                .get();
-        SecretCacheBuildService.activate(cacheService);
         OpCliClient cli = OpCliClient.fromProject(project);
+        ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
+
+        project.getProperties().forEach((key, value) -> {
+            if (!(value instanceof String stringValue) || !stringValue.startsWith(OP_PREFIX)) {
+                return;
+            }
+            if (stringValue.length() <= OP_PREFIX.length()) {
+                throw new PropertyResolutionException(
+                        "Property '" + key + "' contains an invalid 1Password reference: '" + stringValue + "'."
+                );
+            }
+            Provider<String> provider = project.getProviders().of(OpReadValueSource.class, spec -> {
+                spec.getParameters().getReference().set(stringValue);
+                spec.getParameters().getPropertyName().set(key);
+                spec.getParameters().getCommand().set(cli.getCommand());
+                spec.getParameters().getTimeoutMillis().set(cli.getTimeoutMillis());
+            });
+            extraProperties.set(key, provider);
+        });
+
         project.getExtensions().create("onePassword", OnePasswordExtension.class, project, cli);
     }
 }
