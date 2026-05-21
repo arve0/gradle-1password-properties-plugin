@@ -19,7 +19,7 @@ val githubToken: Provider<String> = onePassword.property("GITHUB_TOKEN")
 tasks.register("printToken") {
     doLast {
         // Resolved at execution time — not stored in configuration cache
-        println("token: ${githubToken.get()}")
+        println("token: ${githubToken.get().subSequence(0, 7)}")
     }
 }
 ```
@@ -78,7 +78,7 @@ plugins {
 tasks.register("printTokenFromConvention") {
     val token: Provider<String> = onePassword.property("TOKEN")
     doLast {
-        println("TOKEN=${token.get()}")
+        println("token: ${token.get().subSequence(0, 7)}")
     }
 }
 ```
