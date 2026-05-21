@@ -57,4 +57,4 @@ jobs:
           sudo ln -sf /usr/bin/fdfind /usr/local/bin/fd
 
       - name: Run E2E tests
-        run: ./e2e-tests/run-tests-locally
+        run: ./e2e-tests/run-tests
