@@ -57,14 +57,11 @@ public abstract class OpReadValueSource implements ValueSource<String, OpReadVal
     @Override
     public String obtain() {
         Parameters params = getParameters();
-        String cacheKey = params.getCommand().get() + "|" + params.getReference().get();
-        return SecretCacheBuildService.resolve(cacheKey, k -> {
-            OpCliClient client = new OpCliClient(
-                    params.getCommand().get(),
-                    Duration.ofMillis(params.getTimeoutMillis().get())
-            );
-            ProjectPropertyResolver resolver = new ProjectPropertyResolver(client);
-            return resolver.resolve(params.getPropertyName().get(), params.getReference().get());
-        });
+        OpCliClient client = new OpCliClient(
+                params.getCommand().get(),
+                Duration.ofMillis(params.getTimeoutMillis().get())
+        );
+        ProjectPropertyResolver resolver = new ProjectPropertyResolver(client);
+        return resolver.resolve(params.getPropertyName().get(), params.getReference().get());
     }
 }
