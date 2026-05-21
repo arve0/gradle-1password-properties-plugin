@@ -121,11 +121,15 @@ setup_fixture_vars() {
   if [ -n "$LOCAL_MAVEN_REPO" ]; then
     PLUGIN_VERSION_DECLARATION='version "dev-SNAPSHOT"'
     PLUGIN_REPO_BLOCK='repositories { maven { url = uri("'"$LOCAL_MAVEN_REPO"'") }; gradlePluginPortal() }'
+    BUILDSRC_REPOSITORIES='repositories { maven { url = uri("'"$LOCAL_MAVEN_REPO"'") }; gradlePluginPortal() }'
+    BUILDSRC_DEPENDENCIES='dependencies { implementation("io.github.arve0.1password.properties:io.github.arve0.1password.properties.gradle.plugin:dev-SNAPSHOT") }'
   else
     PLUGIN_VERSION_DECLARATION=""
     PLUGIN_REPO_BLOCK='includeBuild("'"$PROJECT_ROOT"'")'
+    BUILDSRC_REPOSITORIES='repositories { gradlePluginPortal() }'
+    BUILDSRC_DEPENDENCIES=""
   fi
-  export PLUGIN_VERSION_DECLARATION PLUGIN_REPO_BLOCK
+  export PLUGIN_VERSION_DECLARATION PLUGIN_REPO_BLOCK BUILDSRC_REPOSITORIES BUILDSRC_DEPENDENCIES
 }
 
 # Render a fixture template file with envsubst and write to the target path.
@@ -148,11 +152,12 @@ prepare_fixture() {
   fixture_name="$1"
   fixture_src="$SHELLSPEC_PROJECT_ROOT/fixtures/$fixture_name"
   setup_fixture_vars
-  for src_file in "$fixture_src"/*.gradle.kts; do
-    [ -f "$src_file" ] || continue
-    filename="$(basename "$src_file")"
-    render_fixture_file "$src_file" "$FIXTURE_DIR/$filename" \
-      '${PLUGIN_VERSION_DECLARATION} ${PLUGIN_REPO_BLOCK} ${OP_MOCK}'
+  find "$fixture_src" -type f | while IFS= read -r src_file; do
+    rel_path="${src_file#"$fixture_src"/}"
+    target="$FIXTURE_DIR/$rel_path"
+    mkdir -p "$(dirname "$target")"
+    render_fixture_file "$src_file" "$target" \
+      '${PLUGIN_VERSION_DECLARATION} ${PLUGIN_REPO_BLOCK} ${OP_MOCK} ${BUILDSRC_REPOSITORIES} ${BUILDSRC_DEPENDENCIES}'
   done
 }
 
