@@ -4,7 +4,6 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
-
 /**
  * A Gradle plugin that exposes 1Password secret references as lazy {@code Provider<String>}
  * properties.
@@ -39,6 +38,10 @@ public final class OnePasswordGradlePropertiesPlugin implements Plugin<Project> 
 
     @Override
     public void apply(Project project) {
+        SecretCacheBuildService cacheService = project.getGradle().getSharedServices()
+                .registerIfAbsent(SecretCacheBuildService.SERVICE_NAME, SecretCacheBuildService.class, spec -> {})
+                .get();
+        SecretCacheBuildService.activate(cacheService);
         OpCliClient cli = OpCliClient.fromProject(project);
         project.getExtensions().create("onePassword", OnePasswordExtension.class, project, cli);
     }

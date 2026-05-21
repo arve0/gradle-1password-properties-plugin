@@ -47,7 +47,7 @@ public abstract class OpReadValueSource implements ValueSource<String, OpReadVal
         Property<String> getCommand();
 
         /**
-         * Timeout in milliseconds for the {@code op} CLI subprocess.
+         * The timeout in milliseconds for the {@code op} CLI subprocess.
          *
          * @return the timeout property
          */
@@ -57,11 +57,14 @@ public abstract class OpReadValueSource implements ValueSource<String, OpReadVal
     @Override
     public String obtain() {
         Parameters params = getParameters();
-        OpCliClient client = new OpCliClient(
-                params.getCommand().get(),
-                Duration.ofMillis(params.getTimeoutMillis().get())
-        );
-        ProjectPropertyResolver resolver = new ProjectPropertyResolver(client);
-        return resolver.resolve(params.getPropertyName().get(), params.getReference().get());
+        String cacheKey = params.getCommand().get() + "|" + params.getReference().get();
+        return SecretCacheBuildService.resolve(cacheKey, k -> {
+            OpCliClient client = new OpCliClient(
+                    params.getCommand().get(),
+                    Duration.ofMillis(params.getTimeoutMillis().get())
+            );
+            ProjectPropertyResolver resolver = new ProjectPropertyResolver(client);
+            return resolver.resolve(params.getPropertyName().get(), params.getReference().get());
+        });
     }
 }
