@@ -3,7 +3,7 @@ plugins {
 }
 
 tasks.register("printToken") {
-    val token = project.property("TOKEN") as org.gradle.api.provider.Provider<*>
+    val token = onePassword.property("TOKEN")
     doLast {
         println("TOKEN=${token.get()}")
     }
