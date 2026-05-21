@@ -25,13 +25,32 @@ public abstract class OpReadValueSource implements ValueSource<String, OpReadVal
 
     /** Parameters passed to {@link OpReadValueSource} for resolving a single 1Password secret. */
     public interface Parameters extends ValueSourceParameters {
-        /** The {@code op://} reference to resolve (e.g. {@code op://vault/item/field}). */
+        /**
+         * The {@code op://} reference to resolve (e.g. {@code op://vault/item/field}).
+         *
+         * @return the 1Password reference property
+         */
         Property<String> getReference();
-        /** The Gradle project property key — used in error messages. */
+
+        /**
+         * The Gradle project property key — used in error messages.
+         *
+         * @return the property name property
+         */
         Property<String> getPropertyName();
-        /** The {@code op} CLI command (e.g. {@code op} or a custom path). */
+
+        /**
+         * The {@code op} CLI command (e.g. {@code op} or a custom path).
+         *
+         * @return the CLI command property
+         */
         Property<String> getCommand();
-        /** Timeout in milliseconds for the {@code op} CLI subprocess. */
+
+        /**
+         * Timeout in milliseconds for the {@code op} CLI subprocess.
+         *
+         * @return the timeout property
+         */
         Property<Long> getTimeoutMillis();
     }
 

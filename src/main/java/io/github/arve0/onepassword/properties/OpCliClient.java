@@ -1,6 +1,8 @@
 package io.github.arve0.onepassword.properties;
 
 import org.gradle.api.Project;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -8,6 +10,7 @@ import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 final class OpCliClient implements SecretReferenceReader {
+    private static final Logger LOGGER = Logging.getLogger(OpCliClient.class);
     private static final String DEFAULT_COMMAND = "op";
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(10);
 
@@ -67,8 +70,11 @@ final class OpCliClient implements SecretReferenceReader {
     }
 
     private void waitFor(String reference, Process process) {
+        LOGGER.info("Waiting for 1Password CLI process (pid={}, timeout={}ms) to resolve '{}'.",
+                process.pid(), timeout.toMillis(), reference);
         try {
             boolean finished = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            LOGGER.info("1Password CLI process (pid={}) finished: {}", process.pid(), finished);
             if (!finished) {
                 process.destroyForcibly();
                 throw new OpCliException(
