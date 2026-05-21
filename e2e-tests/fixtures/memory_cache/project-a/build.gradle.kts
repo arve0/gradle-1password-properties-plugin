@@ -4,9 +4,11 @@ plugins {
 
 // .get() called during configuration phase
 val tokenValue = onePassword.property("TOKEN").get()
+val tokenValue2 = onePassword.property("TOKEN").get()
 
 tasks.register("printToken") {
     doLast {
         println("TOKEN=$tokenValue")
+        println("TOKEN=$tokenValue2")
     }
 }
