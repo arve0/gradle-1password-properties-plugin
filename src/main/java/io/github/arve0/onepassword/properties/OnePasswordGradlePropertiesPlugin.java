@@ -43,6 +43,9 @@ public final class OnePasswordGradlePropertiesPlugin implements Plugin<Project> 
 
     @Override
     public void apply(Project project) {
+        Provider<SecretsCacheService> cacheService = project.getGradle().getSharedServices()
+                .registerIfAbsent(SecretsCacheService.SERVICE_NAME, SecretsCacheService.class, spec -> {});
+
         OpCliClient cli = OpCliClient.fromProject(project);
         ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
 
@@ -60,6 +63,7 @@ public final class OnePasswordGradlePropertiesPlugin implements Plugin<Project> 
                 spec.getParameters().getPropertyName().set(key);
                 spec.getParameters().getCommand().set(cli.getCommand());
                 spec.getParameters().getTimeoutMillis().set(cli.getTimeoutMillis());
+                spec.getParameters().getCacheService().set(cacheService);
             });
             extraProperties.set(key, provider);
         });

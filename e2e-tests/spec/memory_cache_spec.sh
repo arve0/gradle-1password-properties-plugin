@@ -35,8 +35,10 @@ Describe 'memory cache behaviour'
 
     run_gradle_capture printToken >/dev/null
     invocations="$(read_invocations)"
+    token_prints="$(grep -c 'TOKEN=' "$LAST_OUTPUT_FILE" || echo 0)"
 
-    When run echo "$invocations"
-    The output should equal "1"
+    When run printf '%s\n%s\n' "$invocations" "$token_prints"
+    The line 1 of output should equal "1"
+    The line 2 of output should equal "100"
   End
 End
