@@ -41,4 +41,22 @@ Describe 'memory cache behaviour'
     The line 1 of output should equal "1"
     The line 2 of output should equal "100"
   End
+
+  It 'fetches the changed secret on the next build when the secret value changes between builds'
+    write_gradle_properties "TOKEN=op://vault/item/field"
+
+    run_gradle_capture printToken >/dev/null
+    count_after_first="$(read_invocations)"
+    [ "$count_after_first" = "1" ] || exit 1
+
+    printf '%s\n' "changed-secret" > "$SECRET_FILE"
+
+    run_gradle_capture printToken >/dev/null
+    second_output="$(cat "$LAST_OUTPUT_FILE")"
+    count_after_second="$(read_invocations)"
+
+    When run printf '%s\n%s\n' "$count_after_second" "$second_output"
+    The line 1 of output should equal "2"
+    The output should include "TOKEN=changed-secret"
+  End
 End
