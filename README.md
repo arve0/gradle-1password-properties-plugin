@@ -168,9 +168,13 @@ any value passed to `println` is captured by the Gradle daemon in its log file
 
 In a multi-project (monorepo) build, each subproject has its own `ProviderFactory`,
 so Gradle's built-in `ValueSource` deduplication does not apply across subprojects.
-To avoid redundant `op` invocations the plugin maintains a JVM-level in-memory cache
-keyed by `op://` reference. Within a single Gradle daemon, each unique reference is
-resolved **at most once**, regardless of how many subprojects reference it.
+To avoid redundant `op` invocations the plugin registers a `BuildService` that acts
+as a per-build in-memory cache keyed by `op://` reference. Within a single Gradle
+build, each unique reference is resolved **at most once**, regardless of how many
+subprojects reference it. Because `BuildService` instances are created fresh for
+every build (even within the same long-lived daemon), the cache is automatically
+cleared between builds, so Gradle's configuration-cache fingerprinting always sees
+a fresh `op` call at the start of each new build.
 
 
 ## Configuration

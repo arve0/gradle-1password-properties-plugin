@@ -52,19 +52,33 @@ public abstract class OpReadValueSource implements ValueSource<String, OpReadVal
          * @return the timeout property
          */
         Property<Long> getTimeoutMillis();
+
+        /**
+         * The per-build cache service that deduplicates {@code op} invocations across subprojects.
+         * Optional — may be absent when the configuration cache is warm and the plugin was not
+         * re-applied; in that case {@link #obtain()} falls back to a direct {@code op} invocation.
+         *
+         * @return the cache service property
+         */
+        Property<SecretsCacheService> getCacheService();
     }
 
     @Override
     public String obtain() {
         Parameters params = getParameters();
         String reference = params.getReference().get();
-        return SecretsCache.computeIfAbsent(reference, ref -> {
-            OpCliClient client = new OpCliClient(
-                    params.getCommand().get(),
-                    Duration.ofMillis(params.getTimeoutMillis().get())
-            );
-            ProjectPropertyResolver resolver = new ProjectPropertyResolver(client);
-            return resolver.resolve(params.getPropertyName().get(), ref);
-        });
+        Property<SecretsCacheService> cacheServiceProp = params.getCacheService();
+        if (cacheServiceProp.isPresent()) {
+            return cacheServiceProp.get().computeIfAbsent(reference, ref -> resolve(params, ref));
+        }
+        return resolve(params, reference);
+    }
+
+    private String resolve(Parameters params, String reference) {
+        OpCliClient client = new OpCliClient(
+                params.getCommand().get(),
+                Duration.ofMillis(params.getTimeoutMillis().get())
+        );
+        return new ProjectPropertyResolver(client).resolve(params.getPropertyName().get(), reference);
     }
 }
